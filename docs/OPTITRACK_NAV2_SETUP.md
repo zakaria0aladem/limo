@@ -144,3 +144,7 @@ Snapshots the container with `vrpn_mocap`, `netbase`, and `mocap_localization` a
 - Mocap Nav2 — Daily Manual — everyday run
 - LIMO_OptiTrack_Nav2_Setup — full phase-by-phase log
 - OptiTrack Motive · vrpn_mocap (alvinsunyixiao) · docs.nav2.org
+
+---
+
+_Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._

@@ -101,3 +101,7 @@ build `mocap_localization`. Full steps: `OPTITRACK_NAV2_SETUP.md`.
 | Navigate with OptiTrack absolute localization | `OPTITRACK_NAV2_SETUP.md` → `OPTITRACK_NAV2_DAILY.md` |
 | Run closed-loop P/PID/LQR control from MATLAB | `CONTROL_SETUP.md` → `CONTROL_DAILY.md` |
 | Just confirm the robot moves (no map) | `WANDERING.md` |
+
+---
+
+_Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._

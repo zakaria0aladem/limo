@@ -140,3 +140,7 @@ Useful to sanity-check pose and see truth-vs-estimate drift while tuning.
 ## References
 
 Control research first setup
+
+---
+
+_Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._

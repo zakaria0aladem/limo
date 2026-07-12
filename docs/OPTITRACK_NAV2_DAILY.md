@@ -216,3 +216,7 @@ ros2 lifecycle set /map_server activate
 
 - Mocap Nav2 First Setup
 - Limo robot · setup your device
+
+---
+
+_Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._

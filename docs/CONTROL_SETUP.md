@@ -177,3 +177,7 @@ These connect directly to the eigenvalue / natural-mode / stability analysis in 
 > [!tip] Fair controller comparison = same plant, same metric Because every controller honors the same interface and runs on the same drift-free plant, you can compare them on identical metrics: settling time (`step`), overshoot, RMSE-to-goal, control effort (∫|u|). Record each run's `/vrpn_mocap/Limo/pose` and compute offline — same as the nav comparison experiment.
 
 ## References
+
+---
+
+_Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._

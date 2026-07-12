@@ -286,3 +286,7 @@ Dockerfile bakes in the `netbase` fix + vrpn_mocap + Nav2. TODO before public pu
 
 - Mocap Nav2 — First Setup · Mocap Nav2 — Daily Manual · QuickRun Steps
 - OptiTrack Motive · vrpn_mocap (alvinsunyixiao) · docs.nav2.org
+
+---
+
+_Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._

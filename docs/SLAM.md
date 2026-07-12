@@ -124,3 +124,7 @@ slam_toolbox loads the previous pose graph and extends it.
 | Nav2 params | `/root/maps/nav2.yaml`                       |
 | Maps        | `/root/maps/`                                |
 |             |                                              |
+
+---
+
+_Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._
