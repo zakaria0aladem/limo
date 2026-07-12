@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  fastdds_udp.xml - force Fast DDS to use ONLY the UDPv4 transport.
+
+  WHY: Fast DDS enables shared-memory (SHM) transport for same-host peers. When
+  one participant runs INSIDE a Docker container (as root) and the other on the
+  HOST (e.g. MATLAB as your user), they do not share /dev/shm, so SHM delivery
+  silently fails: topics are DISCOVERED but receive() times out. Forcing UDP-only
+  crosses the container/host boundary reliably. This is the fix behind the MATLAB
+  mocap-subscriber timeout.
+
+  USE (point Fast DDS at this file BEFORE any ROS 2 / MATLAB ROS process starts):
+    container shell: export FASTRTPS_DEFAULT_PROFILES_FILE=/root/maps/fastdds_udp.xml
+    MATLAB startup:  setenv("FASTRTPS_DEFAULT_PROFILES_FILE","/home/<you>/maps/fastdds_udp.xml")
+  Apply on BOTH sides. Requires RMW = rmw_fastrtps_cpp. The robot's own bringup
+  should NOT source this (the daily manual unsets it on the LIMO on purpose).
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>udp_only</transport_id>
+      <type>UDPv4</type>
+    </transport_descriptor>
+  </transport_descriptors>
+  <participant profile_name="udp_participant" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <transport_id>udp_only</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+    </rtps>
+  </participant>
+</profiles>
