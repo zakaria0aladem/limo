@@ -2,12 +2,11 @@
 
 This is the shared foundation for all three workflows (regular AMCL nav, mocap
 Nav2, and MATLAB control). Do it once. Then go to the workflow you want:
-`NAVIGATION.md` (AMCL + SLAM), `OPTITRACK_NAV2_SETUP.md` (mocap), or
-`CONTROL_SETUP.md` (control).
+[`NAVIGATION.md`](NAVIGATION.md) (AMCL + SLAM),
+[`OPTITRACK_NAV2_SETUP.md`](OPTITRACK_NAV2_SETUP.md) (mocap), or
+[`CONTROL_SETUP.md`](CONTROL_SETUP.md) (control).
 
-> Reconstructed from the project's connection/install notes (the original
-> "setup your device" note wasn't in the repo). Verify the exact steps against
-> your machine, especially the `limo_msgs` build and any AgileX image specifics.
+> Verify these steps against your machine, especially the `limo_msgs` build.
 
 ## 1. The robot side (LiDAR + drivers) — vendor code, already on the LIMO
 
@@ -61,35 +60,92 @@ sudo docker run -dit \
 `/root/ros2_ws` and `/root/maps` — that pairing is how files cross the boundary.
 Re-enter later with `sudo docker start limo_laptop && sudo docker exec -it limo_laptop bash`.
 
-## 4. Build `limo_msgs` in the container (once)
+> [!warning] A rebuilt container loses everything you apt-installed.
+> `docker run` on a fresh image starts blank — `netbase`, `vrpn_mocap`, and any
+> apt packages from a previous container are gone. Re-run steps 4–7 after any
+> rebuild. (The repo `Dockerfile` bakes these in to avoid the re-do — prefer
+> building from it once it's verified.)
 
-Without it you get `Deserialization of data failed` on `/limo_status`.
+## 4. Install system dependencies in the container (once)
 
 ```bash
-# put this repo's src/limo_msgs into the mounted workspace, then:
+apt update
+apt install -y netbase ros-foxy-navigation2 ros-foxy-nav2-bringup
+```
+
+- **`netbase` is required** — without it `vrpn_mocap` fails with
+  `getprotobyname() failed` / "connection is bad". Easy to forget; a fresh
+  container does **not** have it.
+- Verify: `dpkg -l | grep netbase` (should list it) and
+  `ros2 pkg list | grep navigation2`.
+
+## 5. Build `limo_msgs` in the container (once)
+
+Without it you get `Deserialization of data failed` on `/limo_status` (battery,
+mode, error code). Copy this repo's `src/limo_msgs` into `~/ros2_ws/src`, then:
+
+```bash
 cd /root/ros2_ws
 colcon build --packages-select limo_msgs
 source install/setup.bash    # add to ~/.bashrc so every shell has it
 ```
 
-## 5. Install Nav2 (once)
+> [!warning] "Duplicate package names not supported: limo_msgs"
+> The AgileX package set (`src/limo_ros2/limo_msgs`) already contains an
+> identical `limo_msgs`. If you also drop this repo's copy in `src/limo_msgs`,
+> colcon sees two and refuses. They define the same message, so **keep one**:
+> ```bash
+> rm -rf /root/ros2_ws/src/limo_msgs      # keep AgileX's src/limo_ros2/limo_msgs
+> colcon build --packages-select limo_msgs
+> ```
+> `LimoStatus.msg` fields (confirmed): `header, vehicle_state, control_mode,`
+> `battery_voltage, error_code, motion_mode`.
 
-```bash
-apt update && apt install -y ros-foxy-navigation2 ros-foxy-nav2-bringup
-```
+> [!note] Build only what you name.
+> Always use `--packages-select`. Plain `colcon build` from a home dir crawls
+> every `setup.py` it can find (MATLAB engine, venvs, numpy tests) and throws a
+> wall of unrelated errors. Run it from `/root/ros2_ws`, never from `~`.
 
 ## 6. Map + config files into `~/maps` (once)
 
-The launch files read from `/root/maps` (= laptop `~/maps`):
+The launch files read from `/root/maps` (= laptop `~/maps`). Copy from the repo's
+`config/` **while inside the cloned repo folder**:
 
 ```bash
-cp config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,slam_params.yaml,fastdds_udp.xml} ~/maps/
+cd <path-to-cloned-repo>          # NOT ~/ros2_ws — config/ lives in the repo
+cp config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,fastdds_udp.xml,limo_mocap_nav2.launch.py} ~/maps/
 ```
 
-## 7. Mocap-only extras
+> [!note] If `~/maps` already has these, skip this step.
+> `~/maps` is a host mount and survives container rebuilds. Check with
+> `ls ~/maps/` first — if the files are there, you're done. The `cannot stat
+> 'config/...'` error means you ran the copy from the wrong folder (there's no
+> `config/` in `~/ros2_ws`); `cd` into the repo first.
 
-If you'll use OptiTrack, also install `ros-foxy-vrpn-mocap` and `netbase`, and
-build `mocap_localization`. Full steps: `OPTITRACK_NAV2_SETUP.md`.
+## 7. Mocap extras (only for the OptiTrack workflow)
+
+```bash
+apt install -y ros-foxy-vrpn-mocap
+# then build the localizer:
+cp -r <repo>/src/mocap_localization /root/ros2_ws/src/
+cd /root/ros2_ws && colcon build --packages-select mocap_localization
+source install/setup.bash
+```
+
+Verify: `ros2 pkg list | grep vrpn_mocap`. Full steps:
+[`OPTITRACK_NAV2_SETUP.md`](OPTITRACK_NAV2_SETUP.md).
+
+## 8. DDS profile for MATLAB / cross-boundary (only if using MATLAB)
+
+MATLAB (or any host process) can't see the container's topics over shared memory
+(root-owned segments). Force UDP:
+
+```bash
+# in every container shell that MATLAB must talk to:
+export FASTRTPS_DEFAULT_PROFILES_FILE=/root/maps/fastdds_udp.xml
+```
+
+Details and the MATLAB side: [`CONTROL_SETUP.md`](CONTROL_SETUP.md).
 
 ---
 
@@ -97,11 +153,10 @@ build `mocap_localization`. Full steps: `OPTITRACK_NAV2_SETUP.md`.
 
 | You want to… | Go to |
 |---|---|
-| Build a map / navigate with the onboard LiDAR (AMCL, SLAM) | `NAVIGATION.md` |
-| Navigate with OptiTrack absolute localization | `OPTITRACK_NAV2_SETUP.md` → `OPTITRACK_NAV2_DAILY.md` |
-| Run closed-loop P/PID/LQR control from MATLAB | `CONTROL_SETUP.md` → `CONTROL_DAILY.md` |
-| Just confirm the robot moves (no map) | `WANDERING.md` |
+| Build a map / navigate with the onboard LiDAR (AMCL, SLAM) | [`NAVIGATION.md`](NAVIGATION.md) |
+| Navigate with OptiTrack absolute localization | [`OPTITRACK_NAV2_SETUP.md`](OPTITRACK_NAV2_SETUP.md) → [`OPTITRACK_NAV2_DAILY.md`](OPTITRACK_NAV2_DAILY.md) |
+| Run closed-loop P/PID/LQR control from MATLAB | [`CONTROL_SETUP.md`](CONTROL_SETUP.md) → [`CONTROL_DAILY.md`](CONTROL_DAILY.md) |
+| Just confirm the robot moves (no map) | [`WANDERING.md`](WANDERING.md) |
 
 ---
-
 _Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._
