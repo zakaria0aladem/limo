@@ -16,13 +16,22 @@ not part of this repo — you start it, you don't build it:
 
 ```bash
 ssh agilex@<LIMO_IP>
+```
+
+```bash
 # clean any stale ROS processes
 pkill -9 ros2
+```
+
+```bash
 # the robot uses Fast DDS on domain 10, and must NOT source the UDP profile
 unset FASTRTPS_DEFAULT_PROFILES_FILE
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_DOMAIN_ID=10
 export ROS_LOCALHOST_ONLY=0
+```
+
+```bash
 # bring up drivers + LiDAR
 ros2 launch limo_bringup limo_start.launch.py
 ```
