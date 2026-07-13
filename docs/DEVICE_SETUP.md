@@ -144,7 +144,7 @@ source install/setup.bash    # add to ~/.bashrc so every shell has it
 
 The launch files read from `/root/maps` (= laptop `~/maps`). Copy from the repo's
 `config/` **while inside the cloned repo folder**:
-
+Reminder: path is assumed to lead to /limo
 ```bash
 cd <path-to-cloned-repo>          # NOT ~/ros2_ws — config/ lives in the repo
 cp config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,fastdds_udp.xml,limo_mocap_nav2.launch.py} ~/maps/
