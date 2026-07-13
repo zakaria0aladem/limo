@@ -1,5 +1,5 @@
 # Regular nav2 steps 
-This is to run the navigation as it is in the manual brovided by the manufacturer with added steps for the setup and an eisear workflow, for a full setup refer to [[DEVICE_SETUP.md]]
+This is to run the navigation as it is in the manual brovided by the manufacturer with added steps for the setup and an eisear workflow, for a full setup refer to [DEVICE_SETUP.md](DEVICE_SETUP.md)
 
 > This document assums that the map is already made and is saved on the robot.
 
