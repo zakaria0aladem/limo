@@ -135,13 +135,29 @@ cd /root/ros2_ws
 colcon build --packages-select limo_msgs
 source install/setup.bash
 ```
-
-To source it automatically in every new shell, add both of these to `~/.bashrc`:
+To source it automatically in every new shell, add these to ~/.bashrc. A fresh
+container does not source ROS at all — you need the base install first, then the
+workspace overlay on top, or you get ros2: command not found:
 
 ```bash
-echo 'source /root/ros2_ws/install/setup.bash' >> ~/.bashrc
+echo 'source /opt/ros/foxy/setup.bash' >> ~/.bashrc          # base ROS 2 -- gives the `ros2` command
+echo 'source /root/ros2_ws/install/setup.bash' >> ~/.bashrc  # your workspace overlay (limo_msgs, etc.)
 echo 'export FASTRTPS_DEFAULT_PROFILES_FILE=/root/maps/fastdds_udp.xml' >> ~/.bashrc
 ```
+
+These apply to new shells. For the current shell, run the two source lines by
+hand once:
+
+```bash
+source /opt/ros/foxy/setup.bash
+source /root/ros2_ws/install/setup.bash
+which ros2        # should print /opt/ros/foxy/bin/ros2
+```
+
+Order matters: the workspace overlay layers on top of the base install and does not
+provide ros2 by itself. Sourcing only install/setup.bash (without the base first)
+still leaves ros2: command not found.
+
 
 **"Duplicate package names not supported: limo_msgs"** — the AgileX set
 (`src/limo_ros2/limo_msgs`) already contains an identical `limo_msgs`. If a second
