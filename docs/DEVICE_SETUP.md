@@ -79,7 +79,7 @@ sudo docker run -dit \
   -v ~/maps:/root/maps \
   -e ROS_DOMAIN_ID=10 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  --name limo_laptop \
+  --name limo_laptop \  #you can change the image name here
   osrf/ros:foxy-desktop
 ```
 
