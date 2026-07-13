@@ -8,6 +8,25 @@ Nav2, and MATLAB control). Do it once. Then go to the workflow you want:
 
 > Verify these steps against your machine, especially the `limo_msgs` build.
 
+## 0. Get the repo (once)
+
+Clone it on the laptop host. These docs assume it lives at ~/limo:
+
+bashcd ~
+git clone https://github.com/zakaria0aladem/limo.git
+
+Three different locations are involved — keep them straight:
+
+
+~/limo — the cloned repo (source of the packages and config files)
+~/ros2_ws — the ROS 2 workspace you build in (mounted into the container)
+~/maps — runtime config the launch files read (mounted into the container)
+
+
+Later steps copy from ~/limo into ~/ros2_ws/src and ~/maps. If you cloned
+elsewhere, substitute your path for ~/limo everywhere below.
+
+
 ## 1. The robot side (LiDAR + drivers) — vendor code, already on the LIMO
 
 The LiDAR driver, wheel odometry, and base controller are **AgileX's stack**
