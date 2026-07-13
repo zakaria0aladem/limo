@@ -36,6 +36,7 @@ not part of this repo — you start it, you don't build it:
 
 ```bash
 ssh agilex@<LIMO_IP>
+ssh agilex@192.168.8.185 #on the GL router
 ```
 
 ```bash
