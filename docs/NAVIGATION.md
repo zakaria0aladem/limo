@@ -325,7 +325,7 @@ unset FASTRTPS_DEFAULT_PROFILES_FILE
 
 # SLAM
 
-SLAM (building a map with the onboard LiDAR) now has its own doc: see **[SLAM.md](SLAM.md)**.
+SLAM (building a map with the onboard LiDAR) doc: see **[SLAM.md](SLAM.md)**.
 
 ## Nav2 Speed Tuning
 
