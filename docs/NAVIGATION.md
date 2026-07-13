@@ -122,7 +122,7 @@ ssh agilex@192.168.8.184 #or any IP that is currently in use by both machines
 pkill -9 ros2
 ```
 
-### Important: Run this at every new terminal
+### Important: Run this at every new terminal (ssh and container)
 ```bash
 unset FASTRTPS_DEFAULT_PROFILES_FILE
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
@@ -130,6 +130,7 @@ export ROS_DOMAIN_ID=10
 export ROS_LOCALHOST_ONLY=0
 ```
 
+launch the robot drivers
 ```bash
 ros2 launch limo_bringup limo_start.launch.py
 ```
