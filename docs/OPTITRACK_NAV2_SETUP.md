@@ -138,13 +138,4 @@ Snapshots the container with `vrpn_mocap`, `netbase`, and `mocap_localization` a
 - **Clock sync laptop↔LIMO** — separate machines; drift → Nav2 TF extrapolation errors. Fix with `chrony`/NTP if it appears.
 - **Pivot off-center** — if reported XY "swings" when rotating in place, recenter the Motive pivot over the rotation axis.
 
-## References
-
-- setup your device — container, limo_msgs, Nav2 install
-- Mocap Nav2 — Daily Manual — everyday run
-- LIMO_OptiTrack_Nav2_Setup — full phase-by-phase log
-- OptiTrack Motive · vrpn_mocap (alvinsunyixiao) · docs.nav2.org
-
----
-
 _Part of the [LIMO documentation index](../README.md#documentation) · [repo home](../README.md)._
