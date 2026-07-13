@@ -59,11 +59,11 @@ B = [-1  0;
 Q = diag([4, 8, 2]);      % penalize ex, ey, etheta
 R = diag([1, 0.5]);       % penalize v, w effort
 
-P.K_lqr = lqr_local(A, B, Q, R);
+% Control System Toolbox is installed -> use the built-in solver directly.
+P.K_lqr = lqr(A, B, Q, R);      % 2x3 optimal gain
 
 fprintf('LQR gain K =\n'); disp(P.K_lqr);
-fprintf(['  -> paste this K into the LQR Controller MATLAB Function block\n' ...
-         '     (codegen cannot read P from the workspace).\n']);
+fprintf('  (baked into the LQR block automatically at build time)\n');
 
 %% ---- Push to base workspace ----
 assignin('base','P',P);
@@ -75,55 +75,3 @@ assignin('base','V_LQR',V_LQR);
 fprintf(['\nParams loaded. CTRL = %d  (1=P, 2=PID, 3=LQR)\n' ...
          'v_max = %.2f m/s -- raise only after a successful slow run.\n'], ...
          CTRL, P.v_max);
-
-% =====================================================================
-function K = lqr_local(A, B, Q, R)
-%LQR_LOCAL  Continuous-time LQR without the Control System Toolbox.
-%
-% Solves the Algebraic Riccati Equation
-%       A'X + XA - XBR^-1B'X + Q = 0
-% via the Hamiltonian matrix eigen-decomposition, then K = R^-1 B' X.
-%
-% The stable invariant subspace of
-%       H = [ A    -B R^-1 B' ;
-%            -Q      -A'      ]
-% gives X = X2/X1 where [X1; X2] spans the eigenvectors with Re(lambda) < 0.
-
-if exist('lqr','file') == 2 || exist('lqr','builtin') == 5
-    try
-        K = lqr(A, B, Q, R);
-        return
-    catch
-        % fall through to the local solver
-    end
-end
-
-n = size(A,1);
-H = [ A,            -B/R*B';
-     -Q,            -A'      ];
-
-[V, D] = eig(H);
-lam = diag(D);
-idx = find(real(lam) < 0);
-
-if numel(idx) ~= n
-    warning(['Riccati solve: could not isolate a stable subspace ' ...
-             '(found %d of %d). Using a hand-tuned fallback gain.'], ...
-             numel(idx), n);
-    K = [-1.8  0    0;
-          0   -2.0 -2.2];
-    return
-end
-
-U  = V(:, idx);
-X1 = U(1:n,     :);
-X2 = U(n+1:end, :);
-X  = real(X2 / X1);          % ARE solution (symmetric, PSD)
-K  = R \ (B' * X);
-
-if any(~isfinite(K(:)))
-    warning('Riccati solve produced non-finite gain. Using fallback.');
-    K = [-1.8  0    0;
-          0   -2.0 -2.2];
-end
-end

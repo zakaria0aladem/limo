@@ -110,8 +110,8 @@ trySet(pubP,'messageType','geometry_msgs/Twist');
 %% ===== 7. Live display =====
 xyP = [mdl '/Path (XY)'];
 add_block('simulink/Sinks/XY Graph', xyP, 'Position',[460 330 520 390]);
-trySet(xyP,'xmin','-1'); trySet(xyP,'xmax','4');
-trySet(xyP,'ymin','-1'); trySet(xyP,'ymax','4');
+trySet(xyP,'xmin','-1',false); trySet(xyP,'xmax','4',false);
+trySet(xyP,'ymin','-1',false); trySet(xyP,'ymax','4',false);
 
 add_block('simulink/Sinks/Scope', [mdl '/v, w'], ...
     'NumInputPorts','2','Position',[880 430 920 470]);
@@ -279,12 +279,19 @@ obj(1).Script = code;                             % sets code AND updates ports
 try, set_param(bdroot(blkPath),'SimulationCommand','update'); catch, end
 end
 
-function trySet(blk, param, val)
-% Sets a block mask parameter AND VERIFIES it actually took. Silently
-% swallowing a failed set_param is exactly how "Blank Twist" reverted to its
-% default geometry_msgs/Point message type in a past session -- the build
-% "succeeded" with no error, and the bug only surfaced three steps later as a
-% cryptic "not a bus signal" warning. Fail loudly here instead, at the source.
+function trySet(blk, param, val, verify)
+% Sets a block mask parameter and (by default) VERIFIES it actually took.
+% Silently swallowing a failed set_param is exactly how "Blank Twist" reverted
+% to its default geometry_msgs/Point message type in a past session -- the
+% build "succeeded" with no error, and the bug only surfaced three steps
+% later as a cryptic "not a bus signal" warning. Fail loudly here instead.
+%
+% verify=false skips the read-back check -- use this for cosmetic/numeric
+% params (axis limits, etc.) where the block may legitimately reformat the
+% value on read (e.g. '-1' reads back as 0 due to internal normalization),
+% which is NOT the same failure mode as a dropdown/enum silently not taking.
+if nargin < 4, verify = true; end
+
 try
     dp = get_param(blk,'DialogParameters');
     if ~isempty(dp) && isfield(dp, param)
@@ -301,19 +308,26 @@ catch ME
         param, string(val), blk, ME.message);
 end
 
-% Verify: read the value back and compare. Message-type-like params are the
-% ones that silently reverted before, so check any param whose current value
-% doesn't match what we asked for.
+if ~verify, return; end
+
+% Verify: read the value back and compare, with a NUMERIC-aware check first
+% (so '-1' matching -1.000 etc. doesn't false-positive) before falling back
+% to a string compare.
 try
     actual = get_param(blk, param);
-    if ~isequal(actual, val) && ~isequal(string(actual), string(val))
-        error('build_limo_control_model:paramMismatch', ...
-            ['Set "%s" on block "%s" but it reads back as "%s" instead of "%s".\n' ...
-             'This is the exact failure mode that caused Blank Twist to stay ' ...
-             'geometry_msgs/Point in a past session. Set it by hand in the ' ...
-             'block dialog (double-click the block), then re-run this script.'], ...
-            param, blk, string(actual), string(val));
+    numActual = str2double(actual);
+    numVal = str2double(val);
+    if ~isnan(numActual) && ~isnan(numVal)
+        if abs(numActual - numVal) < 1e-6, return; end   % numerically equal, fine
+    elseif isequal(actual, val) || isequal(string(actual), string(val))
+        return;                                          % string-equal, fine
     end
+    error('build_limo_control_model:paramMismatch', ...
+        ['Set "%s" on block "%s" but it reads back as "%s" instead of "%s".\n' ...
+         'This is the exact failure mode that caused Blank Twist to stay ' ...
+         'geometry_msgs/Point in a past session. Set it by hand in the ' ...
+         'block dialog (double-click the block), then re-run this script.'], ...
+        param, blk, string(actual), string(val));
 catch ME2
     if strcmp(ME2.identifier, 'build_limo_control_model:paramMismatch')
         rethrow(ME2);
