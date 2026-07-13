@@ -67,7 +67,7 @@ sudo docker run -dit \
 
 `~/ros2_ws` and `~/maps` on the laptop are mounted into the container at
 `/root/ros2_ws` and `/root/maps` — that pairing is how files cross the boundary.
-Re-enter later with:
+Re-enter with:
 
 ```bash
 sudo docker start limo_laptop && sudo docker exec -it limo_laptop bash
