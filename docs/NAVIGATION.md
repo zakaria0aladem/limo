@@ -122,7 +122,7 @@ ssh agilex@192.168.8.184 #or any IP that is currently in use by both machines
 pkill -9 ros2
 ```
 
-Run this at every new terminal
+#### Important: Run this at every new terminal
 ```bash
 unset FASTRTPS_DEFAULT_PROFILES_FILE
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
