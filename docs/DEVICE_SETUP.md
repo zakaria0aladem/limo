@@ -67,7 +67,11 @@ sudo docker run -dit \
 
 `~/ros2_ws` and `~/maps` on the laptop are mounted into the container at
 `/root/ros2_ws` and `/root/maps` — that pairing is how files cross the boundary.
-Re-enter later with `sudo docker start limo_laptop && sudo docker exec -it limo_laptop bash`.
+Re-enter later with:
+
+```bash
+sudo docker start limo_laptop && sudo docker exec -it limo_laptop bash
+```
 
 > [!warning] A rebuilt container loses everything you apt-installed.
 > `docker run` on a fresh image starts blank — `netbase`, `vrpn_mocap`, and any
