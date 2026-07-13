@@ -1,7 +1,7 @@
 # Regular nav2 steps 
 This is to run the navigation as it is in the manual brovided by the manufacturer with added steps for the setup and an eisear workflow, for a full setup refer to [DEVICE_SETUP.md](DEVICE_SETUP.md)
 
-> This document assums that the map is already made and is saved on the robot.
+> This document assums that the map is already made and is saved on the robot, the one brovided in this repo is of the optitrack sectioned area in the MTR lab(ESB 0012) if you want to create your own please follow the steps from the manual and save it at the /maps folder before going any further. 
 
 first make sure both machines are on the same network and the same subnet
 
@@ -56,22 +56,11 @@ docker start limo_laptop
 ```
 sudo docker exec -it limo_laptop bash
 ```
-Set same domain on both machines:
-
-```
-export ROS_DOMAIN_ID=10
-```
 
 Disable firewall (if needed):
 
 ```
 sudo ufw disable
-```
-
-Ensure same RMW implementation:
-
-```
-export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 ```
 
 ```bash
@@ -86,10 +75,6 @@ export ROS_LOCALHOST_ONLY=0
 ```
 
 1）First launch the LiDAR. Enter the command in the terminal:
-
-```
-ros2 launch limo_base limo_base.launch.py
-```
 
 ```
 ros2 launch limo_bringup limo_start.launch.py
@@ -116,11 +101,12 @@ ros2 topic pub /goal_pose geometry_msgs/msg/PoseStamped \
 "{header: {frame_id: map}, pose: {position: {x: 1.0, y: 2.0, z: 0.0}, orientation: {z: 0.0, w: 1.0}}}"
 ```
 
-## Running LIMO Nav2 from Laptop (Daily Workflow)
+# Running LIMO Nav2 from Laptop (Daily Workflow)
 
 ### Prerequisites (one-time)
 
-setup your device
+setup your device [DEVICE_SETUP.md](DEVICE_SETUP.md)
+
 
 ---
 
@@ -129,7 +115,7 @@ setup your device
 bash
 
 ```bash
-ssh agilex@192.168.8.184
+ssh agilex@192.168.8.184 #or any IP that is currently in use by both machines
 ```
 
 ```bash
@@ -370,19 +356,19 @@ grep -E "max_vel_x:|max_speed_xy:|decel_lim_x:|controller_frequency:|inflation_r
 
 ## Rules and warnings
 
-> [!warning] Scale supporting params with speed
+> Scale supporting params with speed
 > Raising max_vel_x alone makes the robot lurch and overshoot. Deceleration,
 > controller frequency, inflation radius, and sim_time must all scale up too.
 
-> [!warning] LIMO hardware limit ~1.0 m/s
+> LIMO hardware limit ~1.0 m/s
 > Setting max_vel_x above ~1.0 does nothing — motors saturate. Safe indoor
 > ceiling is ~0.6–0.7 m/s; 0.8 is aggressive.
 
-> [!tip] Turning radius
+> Turning radius
 > min turning radius = max_vel_x / max_vel_theta
 > At 0.8 / 0.8 = 1.0 m. If the robot can't corner, raise max_vel_theta.
 
-> [!warning] sed only replaces exact matches
+> sed only replaces exact matches
 > If a sed command "does nothing", the value was already changed in a prior
 > run. Always `grep` current values first, then target those exact numbers.
 
