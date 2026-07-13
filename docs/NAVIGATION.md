@@ -110,7 +110,7 @@ setup your device [DEVICE_SETUP.md](DEVICE_SETUP.md)
 
 ---
 
-### Step 1 — Start robot drivers (Terminal A)
+## Step 1 — Start robot drivers (Terminal A)
 
 bash
 
@@ -122,7 +122,7 @@ ssh agilex@192.168.8.184 #or any IP that is currently in use by both machines
 pkill -9 ros2
 ```
 
-#### Important: Run this at every new terminal
+### Important: Run this at every new terminal
 ```bash
 unset FASTRTPS_DEFAULT_PROFILES_FILE
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
@@ -143,7 +143,7 @@ Wait until you see:
 
 ---
 
-### Step 2 — Start the laptop container (Terminal B — laptop host)
+## Step 2 — Start the laptop container (Terminal B — laptop host)
 
 bash
 
@@ -164,7 +164,7 @@ ros2 topic list
 
 Expected: `/cmd_vel`, `/imu`, `/limo_status`, `/odom`, `/scan`, `/tf`, `/tf_static`.
 
-### Step 3 — Launch Nav2 (Terminal B, inside container)
+## Step 3 — Launch Nav2 (Terminal B, inside container)
 
 ```bash
 ros2 launch nav2_bringup bringup_launch.py \
@@ -179,7 +179,7 @@ Wait for: `Managed nodes are active` (about 10 seconds).
 
 ---
 
-### Step 5 — Bootstrap the map frame (Terminal C — new container shell)
+## Step 5 — Bootstrap the map frame (Terminal C — new container shell)
 
 Open a new terminal on the laptop host:
 
@@ -201,7 +201,7 @@ ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 map odom
 
 ---
 
-### Step 6 — Open RViz (Terminal D — new container shell)
+## Step 6 — Open RViz (Terminal D — new container shell)
 
 bash
 
@@ -228,7 +228,7 @@ In RViz:
 
 ---
 
-### Step 7 — Localize the robot
+## Step 7 — Localize the robot
 
 1. Look at the map and identify where the robot physically is in the room
 2. Click **2D Pose Estimate** at the top of RViz
@@ -241,7 +241,7 @@ AMCL now publishes the real `map → odom` transform. The laser scan dots should
 
 ---
 
-### Step 8 — Kill the static transform (Terminal C)
+## Step 8 — Kill the static transform (Terminal C)
 
 Now that AMCL is publishing `map → odom`, kill the fake one:
 
@@ -253,7 +253,7 @@ Map should stay put. If it jumps, click 2D Pose Estimate again.
 
 ---
 
-### Step 9 — Send navigation goals
+## Step 9 — Send navigation goals
 
 **Via RViz:**
 
