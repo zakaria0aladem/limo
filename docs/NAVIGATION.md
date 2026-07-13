@@ -1,5 +1,10 @@
 # connect to the robot
 
+first make sure both machines are on the same network and the same subnet
+
+```bash
+hostname -I
+```
 ### AUS_Wirless
 
 IP: inet 10.25.150.233
@@ -22,15 +27,6 @@ and to connect display we use:
 ssh -X agilex@192.168.8.185
 ```
 
-Windows terminal is recommended as it is fast and has the ability to open tabs
-
-  
-
-first make sure both machines are on the same network and the same subnet
-
-```bash
-hostname -I
-```
 
 they also have to be on the same ros distribution
 
