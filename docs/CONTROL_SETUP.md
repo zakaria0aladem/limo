@@ -104,7 +104,7 @@ matlab
 
 ```matlab
 % MATLAB startup.m  (create in ~/Documents/MATLAB/)
-setenv("FASTRTPS_DEFAULT_PROFILES_FILE","/home/zakaria/maps/fastdds_udp.xml");
+setenv("FASTRTPS_DEFAULT_PROFILES_FILE", fullfile(getenv('HOME'), "maps", "fastdds_udp.xml"));
 ```
 
 ---
