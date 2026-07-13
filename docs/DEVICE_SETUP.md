@@ -94,7 +94,7 @@ Re-enter with:
 sudo docker start limo_laptop && sudo docker exec -it limo_laptop bash
 ```
 
-> [!warning] A rebuilt container loses everything you apt-installed.
+>  A rebuilt container loses everything you apt-installed.
 > `docker run` on a fresh image starts blank — `netbase`, `vrpn_mocap`, and any
 > apt packages from a previous container are gone. Re-run steps 4–7 after any
 > rebuild. (The repo `Dockerfile` bakes these in to avoid the re-do — prefer
@@ -124,7 +124,7 @@ colcon build --packages-select limo_msgs
 source install/setup.bash    # add to ~/.bashrc so every shell has it
 ```
 
-> [!warning] "Duplicate package names not supported: limo_msgs"
+> "Duplicate package names not supported: limo_msgs"
 > The AgileX package set (`src/limo_ros2/limo_msgs`) already contains an
 > identical `limo_msgs`. If you also drop this repo's copy in `src/limo_msgs`,
 > colcon sees two and refuses. They define the same message, so **keep one**:
@@ -135,7 +135,7 @@ source install/setup.bash    # add to ~/.bashrc so every shell has it
 > `LimoStatus.msg` fields (confirmed): `header, vehicle_state, control_mode,`
 > `battery_voltage, error_code, motion_mode`.
 
-> [!note] Build only what you name.
+> Build only what you name.
 > Always use `--packages-select`. Plain `colcon build` from a home dir crawls
 > every `setup.py` it can find (MATLAB engine, venvs, numpy tests) and throws a
 > wall of unrelated errors. Run it from `/root/ros2_ws`, never from `~`.
@@ -150,7 +150,7 @@ cd <path-to-cloned-repo>          # NOT ~/ros2_ws — config/ lives in the repo
 cp config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,fastdds_udp.xml,limo_mocap_nav2.launch.py} ~/maps/
 ```
 
-> [!note] If `~/maps` already has these, skip this step.
+> If `~/maps` already has these, skip this step.
 > `~/maps` is a host mount and survives container rebuilds. Check with
 > `ls ~/maps/` first — if the files are there, you're done. The `cannot stat
 > 'config/...'` error means you ran the copy from the wrong folder (there's no
