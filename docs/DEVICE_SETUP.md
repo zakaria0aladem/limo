@@ -12,7 +12,7 @@ Nav2, and MATLAB control). Do it once. Then go to the workflow you want:
 
 Clone it on the laptop host. These docs assume it lives at ~/limo:
 ```bash
-bashcd ~
+cd ~
 git clone https://github.com/zakaria0aladem/limo.git
 ```
 
