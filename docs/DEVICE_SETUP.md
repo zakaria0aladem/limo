@@ -160,7 +160,6 @@ cp config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,fastdds_udp.xml,limo_mocap_nav2.la
 ```bash
 apt install -y ros-foxy-vrpn-mocap
 # then build the localizer:
-cp -r <repo>/src/mocap_localization /root/ros2_ws/src/
 cd /root/ros2_ws && colcon build --packages-select mocap_localization
 source install/setup.bash
 ```
