@@ -43,26 +43,27 @@ set_param(mdl, ...
     'FixedStep', num2str(P.Ts), 'StopTime','inf');
 
 %% ===== 1. ROS 2 Subscribe (mocap pose) =====
+% Subscribe has TWO outputs:  port 1 = IsNew (bool),  port 2 = Msg (bus).
+% Wiring port 1 into a Bus Selector gives "not a bus signal".
 subP = [mdl '/Mocap Pose'];
 add_block('ros2lib/Subscribe', subP, 'Position',[30 100 130 150]);
 trySet(subP,'topicSource','Specify your own');
 trySet(subP,'topic', P.mocapTopic);
-trySet(subP,'msgType','geometry_msgs/PoseStamped');
 trySet(subP,'messageType','geometry_msgs/PoseStamped');
 trySet(subP,'sampleTime', num2str(P.Ts));
-% QoS: vrpn_mocap publishes BEST-EFFORT. A reliable subscriber won't match it.
-trySet(subP,'qosReliability','Best effort');
-trySet(subP,'qosDurability','Volatile');
-trySet(subP,'qosHistory','Keep last');
-trySet(subP,'qosDepth','5');
+% QoS param names are UPPERCASE 'QOS...'  (lowercase silently does nothing).
+% vrpn_mocap publishes BEST-EFFORT; a reliable subscriber will not match it.
+trySet(subP,'QOSReliability','Best effort');
+trySet(subP,'QOSDurability','Volatile');
+trySet(subP,'QOSHistory','Keep last');
+trySet(subP,'QOSDepth','5');
 
 %% ===== 2. Unpack pose -> [x; y; theta] =====
+% Bus signal selections are set LATER, after an Update Model creates the
+% SL_Bus_* objects. Setting them now makes Simulink "remap" them to bogus
+% names (e.g. linear.x -> x) against the block's default message type.
 busP = [mdl '/Unpack Pose'];
 add_block('simulink/Signal Routing/Bus Selector', busP, 'Position',[180 90 190 170]);
-set_param(busP,'OutputSignals', ...
-    ['pose.position.x,pose.position.y,' ...
-     'pose.orientation.x,pose.orientation.y,' ...
-     'pose.orientation.z,pose.orientation.w']);
 
 addMatlabFcn(mdl, 'quat2yaw', [250 150 330 200], quat2yawCode());
 
@@ -93,19 +94,17 @@ add_block('simulink/Signal Routing/Manual Switch', [mdl '/E-STOP w'], ...
 %% ===== 6. Build + publish Twist =====
 blankP = [mdl '/Blank Twist'];
 add_block('ros2lib/Blank Message', blankP, 'Position',[800 320 900 360]);
-trySet(blankP,'msgType','geometry_msgs/Twist');
 trySet(blankP,'messageType','geometry_msgs/Twist');
 trySet(blankP,'sampleTime', num2str(P.Ts));
 
+% AssignedSignals set after Update Model (see section 10).
 basgP = [mdl '/Fill Twist'];
 add_block('simulink/Signal Routing/Bus Assignment', basgP, 'Position',[950 130 960 360]);
-set_param(basgP,'AssignedSignals','linear.x,angular.z');
 
 pubP = [mdl '/cmd_vel'];
 add_block('ros2lib/Publish', pubP, 'Position',[1020 220 1120 270]);
 trySet(pubP,'topicSource','Specify your own');
 trySet(pubP,'topic', P.cmdTopic);
-trySet(pubP,'msgType','geometry_msgs/Twist');
 trySet(pubP,'messageType','geometry_msgs/Twist');
 
 %% ===== 7. Live display =====
@@ -130,7 +129,7 @@ end
 
 %% ===== 8. Wire =====
 c = @(a,b) add_line(mdl, a, b, 'autorouting','on');
-c('Mocap Pose/1','Unpack Pose/1');
+c('Mocap Pose/2','Unpack Pose/1');    % port 2 = Msg (bus). Port 1 = IsNew (bool)!
 c('Unpack Pose/1','state/1');
 c('Unpack Pose/2','state/2');
 for k = 1:4
@@ -160,7 +159,7 @@ c('quat2yaw/1','theta/1');
 c('E-STOP v/1','v, w/1');
 c('E-STOP w/1','v, w/2');
 
-%% ===== 9. Annotate + save =====
+%% ===== 9. Annotate =====
 try
     a = Simulink.Annotation([mdl '/note']);
     a.Text = sprintf(['LIMO closed-loop mocap control\n' ...
@@ -172,7 +171,31 @@ try
 catch
 end
 
+%% ===== 10. Create buses, THEN select bus signals =====
+% ROS 2 message buses (SL_Bus_geometry_msgs_*) only exist after an Update
+% Model. Assigning signals before that makes Simulink remap them to bogus
+% top-level names, which then fail to resolve. Order matters.
 set_param(mdl,'ZoomFactor','FitSystem');
+try
+    set_param(mdl,'SimulationCommand','update');   % creates the SL_Bus_* objects
+catch ME
+    warning('Update Model failed (%s). Press Ctrl+D manually, then re-run section 10.', ME.message);
+end
+
+try
+    set_param([mdl '/Unpack Pose'],'OutputSignals', ...
+        ['pose.position.x,pose.position.y,' ...
+         'pose.orientation.x,pose.orientation.y,' ...
+         'pose.orientation.z,pose.orientation.w']);
+    set_param([mdl '/Fill Twist'],'AssignedSignals','linear.x,angular.z');
+    set_param(mdl,'SimulationCommand','update');   % re-resolve with signals set
+catch ME
+    warning(['Could not set bus signals (%s).\n' ...
+             'Fix by hand: double-click "Unpack Pose" -> select pose.position.x/y ' ...
+             'and pose.orientation.x/y/z/w;  double-click "Fill Twist" -> select ' ...
+             'linear.x and angular.z. Then Ctrl+D.'], ME.message);
+end
+
 save_system(mdl);
 
 fprintf('\nBuilt %s.slx\n\n', mdl);
@@ -257,14 +280,46 @@ try, set_param(bdroot(blkPath),'SimulationCommand','update'); catch, end
 end
 
 function trySet(blk, param, val)
+% Sets a block mask parameter AND VERIFIES it actually took. Silently
+% swallowing a failed set_param is exactly how "Blank Twist" reverted to its
+% default geometry_msgs/Point message type in a past session -- the build
+% "succeeded" with no error, and the bug only surfaced three steps later as a
+% cryptic "not a bus signal" warning. Fail loudly here instead, at the source.
 try
     dp = get_param(blk,'DialogParameters');
     if ~isempty(dp) && isfield(dp, param)
-        set_param(blk, param, val); return
+        set_param(blk, param, val);
+    else
+        set_param(blk, param, val);   % some params aren't in DialogParameters
     end
-catch
+catch ME
+    error('build_limo_control_model:paramSet', ...
+        ['Failed to set "%s" = "%s" on block "%s".\n' ...
+         'Reason: %s\n' ...
+         'This parameter name may differ in your MATLAB release -- set it ' ...
+         'by hand in the block dialog, then re-run this script.'], ...
+        param, string(val), blk, ME.message);
 end
-try, set_param(blk, param, val); catch, end
+
+% Verify: read the value back and compare. Message-type-like params are the
+% ones that silently reverted before, so check any param whose current value
+% doesn't match what we asked for.
+try
+    actual = get_param(blk, param);
+    if ~isequal(actual, val) && ~isequal(string(actual), string(val))
+        error('build_limo_control_model:paramMismatch', ...
+            ['Set "%s" on block "%s" but it reads back as "%s" instead of "%s".\n' ...
+             'This is the exact failure mode that caused Blank Twist to stay ' ...
+             'geometry_msgs/Point in a past session. Set it by hand in the ' ...
+             'block dialog (double-click the block), then re-run this script.'], ...
+            param, blk, string(actual), string(val));
+    end
+catch ME2
+    if strcmp(ME2.identifier, 'build_limo_control_model:paramMismatch')
+        rethrow(ME2);
+    end
+    % param not readable via get_param (e.g. write-only) -- can't verify, skip
+end
 end
 
 % ===================== MATLAB Function code =====================
