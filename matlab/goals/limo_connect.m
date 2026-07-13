@@ -16,7 +16,7 @@ function h = limo_connect(opts)
 % PREREQ:
 %   * MATLAB Preferences > ROS Toolbox > RMW = rmw_fastrtps_cpp (default)
 %   * The Fast DDS UDP profile is active (container/host shared-memory fix):
-%       setenv("FASTRTPS_DEFAULT_PROFILES_FILE","/home/zakaria/maps/fastdds_udp.xml")
+%       setenv("FASTRTPS_DEFAULT_PROFILES_FILE", fullfile(getenv('HOME'), "maps", "fastdds_udp.xml"))
 %     BEFORE launching MATLAB / creating any ros2 object.
 %
 % Returns h with fields:
