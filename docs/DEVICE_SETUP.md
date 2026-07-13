@@ -216,8 +216,8 @@ MATLAB (or any host process) can't see the container's topics over shared memory
 # in every CONTAINER shell that MATLAB must talk to:
 export FASTRTPS_DEFAULT_PROFILES_FILE=/root/maps/fastdds_udp.xml
 
-# in MATLAB, BEFORE any ros2 object (host path -- adjust user):
-#   setenv("FASTRTPS_DEFAULT_PROFILES_FILE","/home/zakaria/maps/fastdds_udp.xml")
+# in MATLAB, BEFORE any ros2 object (portable -- works for any user):
+#   setenv("FASTRTPS_DEFAULT_PROFILES_FILE", fullfile(getenv('HOME'), "maps", "fastdds_udp.xml"))
 ```
 
 The container path (`/root/maps/...`) and the host/MATLAB path
