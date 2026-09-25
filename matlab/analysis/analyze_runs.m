@@ -9,8 +9,12 @@
 % Mocap & AMCL: belief should hug truth. Odom-only: belief drifts away.
 %
 % Requirements: MATLAB R2023a+ with ROS Toolbox (ros2bagreader).
-% Put the three bag folders next to this script:
-%   run1_mocap/  run2_amcl/  run3_odom/
+% Bags are read from the repo's data/ folder (data/run1_mocap/, ...), so this
+% runs from any working directory. To add runs, record them into data/ and
+% add entries to the `runs` struct below, e.g.:
+%   'name', {'Mocap-Nav','AMCL-Nav','Odom-only'}, ...
+%   'bag',  {'run1_mocap','run2_amcl','run3_odom'}, ...
+%   'color',{[0 0.45 0.74],[0.85 0.33 0.10],[0.47 0.67 0.19]}
 
 clear; close all; clc;
 
@@ -19,20 +23,31 @@ runs = struct( ...
     'bag',   {'run1_mocap'}, ...
     'color', {[0 0.45 0.74]} );
 
+dataDir = fullfile(fileparts(mfilename('fullpath')), '..', '..', 'data');
+
 mocap_topic = "/vrpn_mocap/Limo/pose";
 map_frame   = "map";
 base_frame  = "base_link";
 
 %% ---- Extract trajectories from each bag ----
 for k = 1:numel(runs)
-    bag = ros2bagreader(runs(k).bag);
+    bagPath = fullfile(dataDir, runs(k).bag);
+    assert(isfolder(bagPath), "Bag folder not found: %s", bagPath);
+    bag = ros2bagreader(bagPath);
 
     % TRUTH: OptiTrack pose
     truth = extractPose(bag, mocap_topic);
-    runs(k).truth = truth;
 
     % BELIEF: reconstruct map->base_link from /tf
-    runs(k).belief = extractTF(bag, map_frame, base_frame);
+    belief = extractTF(bag, map_frame, base_frame);
+
+    % Both streams carry ABSOLUTE stamps; shift them by one shared t0 so the
+    % nearest-time matching in trajDrift compares the same instants.
+    t0 = min(truth.t(1), belief.t(1));
+    truth.t  = truth.t  - t0;
+    belief.t = belief.t - t0;
+    runs(k).truth  = truth;
+    runs(k).belief = belief;
 
     % Drift = distance between belief and truth, time-matched
     runs(k).drift = trajDrift(runs(k).truth, runs(k).belief);
@@ -83,7 +98,7 @@ function P = extractPose(bag, topic)
         xy(i,:) = [msgs{i}.pose.position.x, msgs{i}.pose.position.y];
         t(i) = double(msgs{i}.header.stamp.sec) + double(msgs{i}.header.stamp.nanosec)*1e-9;
     end
-    P.xy = xy; P.t = t - t(1);
+    P.xy = xy; P.t = t;             % absolute stamps; caller re-zeroes
 end
 
 function B = extractTF(bag, parent, child)
@@ -120,7 +135,7 @@ function B = extractTF(bag, parent, child)
         xy(i,2) = m(2) + s*ob(i,2) + c*ob(i,3);
         tt(i) = ob(i,1);
     end
-    B.xy = xy; B.t = tt - tt(1);
+    B.xy = xy; B.t = tt;            % absolute stamps; caller re-zeroes
 end
 
 function D = trajDrift(truth, belief)

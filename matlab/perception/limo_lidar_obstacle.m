@@ -30,11 +30,21 @@ arguments
     opts.print (1,1) logical = true
 end
 
-% cache the subscriber on first use
-persistent scanSub
-if isempty(scanSub)
+% cache the subscriber; rebuild it if the node (new limo_connect) or topic changed
+persistent scanSub subNode subTopic
+stale = isempty(scanSub) || subTopic ~= opts.scanTopic;
+if ~stale
+    try
+        stale = ~isvalid(subNode) || subNode ~= h.node;
+    catch
+        stale = true;
+    end
+end
+if stale
     scanSub = ros2subscriber(h.node, opts.scanTopic, "sensor_msgs/LaserScan", ...
         "Reliability","besteffort","Durability","volatile","Depth",5);
+    subNode = h.node;
+    subTopic = opts.scanTopic;
     pause(0.5);
 end
 

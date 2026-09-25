@@ -3,7 +3,6 @@ import math
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, Quaternion, PoseStamped
 from sensor_msgs.msg import LaserScan
-from tf_transformations import quaternion_from_euler
 from builtin_interfaces.msg import Time
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -80,13 +79,13 @@ class PotentialField(Node):
         vector.pose.position.y = 0.0
         vector.pose.position.z = 0.0
 
+        # Yaw-only quaternion (roll = pitch = 0), no tf_transformations needed
         angle = math.atan2(y, x)
-        q = quaternion_from_euler(0, 0, angle)
         quaternion_msg = Quaternion()
-        quaternion_msg.x = q[0]
-        quaternion_msg.y = q[1]
-        quaternion_msg.z = q[2]
-        quaternion_msg.w = q[3]
+        quaternion_msg.x = 0.0
+        quaternion_msg.y = 0.0
+        quaternion_msg.z = math.sin(angle / 2.0)
+        quaternion_msg.w = math.cos(angle / 2.0)
         vector.pose.orientation = quaternion_msg
         
         return vector
