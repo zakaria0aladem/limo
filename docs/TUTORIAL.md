@@ -17,7 +17,7 @@ and the scan is sane before anything harder.
 
 - **Code:** `src/limo_nav/` (node: `wandering`)
 - **Guide:** [WANDERING.md](WANDERING.md)
-- **Run:** `ros2 run limo_nav wandering`
+- **Run:** `ros2 run limo_nav wandering` (after building it; see the guide)
 
 ## Level 1 — Mapping & navigation with the onboard LiDAR (AMCL + SLAM)
 
@@ -90,8 +90,17 @@ This shows up in Levels 2 and 3.
 - `rmw_fastrtps_cpp`, `ROS_DOMAIN_ID=10` on **both** machines
 - MATLAB **R2023a** for Levels 2 (analysis) and 3 (control)
 
-Build the ROS packages once: `colcon build --symlink-install` from the repo root,
-then `source install/setup.bash`.
+The ROS packages in `src/` are copied into `~/ros2_ws/src` and built **inside the
+container**, one package at a time (`colcon build --packages-select <pkg>`); see
+[DEVICE_SETUP.md](DEVICE_SETUP.md) steps 5–7. The MATLAB code runs straight from
+`matlab/` once it's on the path ([CONTROL_SETUP.md §1](CONTROL_SETUP.md#1-put-the-matlab-folders-on-the-path)).
+
+## Side track — LiDAR obstacle detection in MATLAB
+
+`matlab/perception/` reads `/scan` directly from MATLAB and reports the nearest
+obstacle plus front/left/right clearance, with a live polar-plot viewer. It needs
+only the robot drivers and `limo_connect`, so it fits alongside Levels 0–1. See
+[`matlab/perception/README.md`](../matlab/perception/README.md).
 
 ---
 

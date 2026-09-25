@@ -1,136 +1,115 @@
-# Regular nav2 steps 
-This is to run the navigation as it is in the manual brovided by the manufacturer with added steps for the setup and an eisear workflow, for a full setup refer to [DEVICE_SETUP.md](DEVICE_SETUP.md)
+# Navigation with AMCL on a saved map (Nav2)
 
-> This document assums that the map is already made and is saved on the robot, the one brovided in this repo is of the optitrack sectioned area in the MTR lab(ESB 0012) if you want to create your own please follow the steps from the manual and save it at the /maps folder before going any further. 
+Autonomous navigation with the onboard LiDAR: load a saved map, localize with
+**AMCL** (LiDAR-to-wall matching, seeded by a manual **2D Pose Estimate**), then
+send goals. This is the manufacturer's standard workflow, plus a laptop-side
+variant and Nav2 speed tuning.
 
-first make sure both machines are on the same network and the same subnet
+**Prerequisites:** the one-time base setup in [`DEVICE_SETUP.md`](DEVICE_SETUP.md),
+and a saved map. The map in this repo (`config/mapMTR5.{yaml,pgm}`) covers the
+OptiTrack area of the MTR lab (ESB 0012). To map a different space, build one
+first with [`SLAM.md`](SLAM.md) and save it in `~/maps` (`/root/maps` in the
+container).
+
+**Contents:** [Network](#network) · [Option A: onboard](#option-a--run-everything-on-the-robot-vendor-launch) ·
+[Option B: laptop](#option-b--nav2-on-the-laptop-daily-workflow) ·
+[Troubleshooting](#troubleshooting) · [Speed tuning](#nav2-speed-tuning)
+
+---
+
+## Network
+
+Both machines must be on the same network **and** subnet, on the same ROS 2
+distribution (Foxy), with `ROS_DOMAIN_ID=10` and `rmw_fastrtps_cpp`. IPs are
+DHCP, so check the robot's IP every session (on the LIMO):
 
 ```bash
 hostname -I
 ```
-### AUS_Wirless
 
-IP: inet 10.25.150.233
+Known networks (IPs last seen; verify):
 
-to connect ssh
+| Network | LIMO IP | SSH |
+|---|---|---|
+| `AUS_Wireless` | `10.25.150.233` | `ssh agilex@10.25.150.233` |
+| `GL-BE9300-2a5` (lab router) | `192.168.8.185` | `ssh agilex@192.168.8.185` |
 
-```bash
- ssh agilex@10.25.150.233
-```
+Use `ssh -X ...` if you want robot-side windows (RViz on the robot) to display
+on the laptop.
 
-and to connect display we use:
-
-```bash
- ssh -X agilex@10.25.150.233
-```
-
-  
-### `GL-BE9300-2a5`
-```bash
-ssh -X agilex@192.168.8.185
-```
-
-
-they also have to be on the same ros distribution
+**Every new robot shell** (and every container shell, unless your `~/.bashrc`
+already sets these) needs:
 
 ```bash
-xhost +local:docker
-
-sudo docker run -dit \
-  --net=host --ipc=host \
-  --privileged \
-  -e DISPLAY=$DISPLAY \
-  -v /tmp/.X11-unix:/tmp/.X11-unix \
-  -v ~/ros2_ws:/root/ros2_ws \
-  -v ~/maps:/root/maps \
-  -e ROS_DOMAIN_ID=10 \
-  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  --name limo_laptop \
-  osrf/ros:foxy-desktop
-```
-
-```
-docker start limo_laptop
-```
-
-```
-sudo docker exec -it limo_laptop bash
-```
-
-Disable firewall (if needed):
-
-```
-sudo ufw disable
-```
-
-```bash
-pkill -9 ros2
-```
-
-```bash
-unset FASTRTPS_DEFAULT_PROFILES_FILE
+unset FASTRTPS_DEFAULT_PROFILES_FILE      # robot only; see DEVICE_SETUP step 5 for the container
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_DOMAIN_ID=10
 export ROS_LOCALHOST_ONLY=0
 ```
 
-1）First launch the LiDAR. Enter the command in the terminal:
-
-```
-ros2 launch limo_bringup limo_start.launch.py
-```
-
-2) start the navigation
-
-```
-ros2 launch limo_bringup limo_nav2.launch.py
-```
-
-or
-
-2) run with no rviz
-
-```bash
-ros2 launch limo_bringup limo_nav2.launch.py use_rviz:=false
-```
-
-set goal
-
-```bash
-ros2 topic pub /goal_pose geometry_msgs/msg/PoseStamped \
-"{header: {frame_id: map}, pose: {position: {x: 1.0, y: 2.0, z: 0.0}, orientation: {z: 0.0, w: 1.0}}}"
-```
-
-# Running LIMO Nav2 from Laptop (Daily Workflow)
-
-### Prerequisites (one-time)
-
-setup your device [DEVICE_SETUP.md](DEVICE_SETUP.md)
-
+If the laptop can't see robot topics and everything above matches, a firewall
+may be blocking DDS traffic. Temporarily test with `sudo ufw disable` on the
+laptop (re-enable afterwards with `sudo ufw enable`).
 
 ---
 
-## Step 1 — Start robot drivers (Terminal A)
+## Option A — Run everything on the robot (vendor launch)
 
-bash
+Quickest check that navigation works; everything runs on the LIMO and uses the
+map configured in AgileX's `limo_bringup`.
+
+1. SSH in, clean stale processes, set the environment (above):
+
+   ```bash
+   ssh agilex@192.168.8.185
+   pkill -9 ros2
+   ```
+
+2. Launch the LiDAR and base drivers:
+
+   ```bash
+   ros2 launch limo_bringup limo_start.launch.py
+   ```
+
+3. In a second SSH shell, start navigation (with RViz over `ssh -X`, or headless):
+
+   ```bash
+   ros2 launch limo_bringup limo_nav2.launch.py
+   # or, no RViz:
+   ros2 launch limo_bringup limo_nav2.launch.py use_rviz:=false
+   ```
+
+4. Set the initial pose in RViz (**2D Pose Estimate**), then send a goal:
+
+   ```bash
+   ros2 topic pub --once /goal_pose geometry_msgs/msg/PoseStamped \
+     "{header: {frame_id: 'map'}, pose: {position: {x: 1.0, y: 2.0, z: 0.0}, orientation: {z: 0.0, w: 1.0}}}"
+   ```
+
+---
+
+## Option B — Nav2 on the laptop (daily workflow)
+
+The robot only runs its drivers; Nav2, AMCL, the map and RViz run in the laptop
+container with this repo's `nav2.yaml` and map. This is the setup the mocap
+workflow later builds on.
+
+| Terminal | Where | Runs |
+|---|---|---|
+| A | robot (SSH) | drivers + LiDAR |
+| B | container | Nav2 with AMCL + map_server (`bringup_launch.py`) |
+| C | container | temporary `map → odom` bootstrap |
+| D | container | RViz |
+
+### Step 1 — Robot drivers (Terminal A)
 
 ```bash
-ssh agilex@192.168.8.184 #or any IP that is currently in use by both machines
-```
-
-```bash
+ssh agilex@192.168.8.185        # or whichever IP the robot has today
 pkill -9 ros2
 ```
 
-### Important: Run this at every new terminal (ssh and container)
-```bash
-unset FASTRTPS_DEFAULT_PROFILES_FILE
-export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-export ROS_DOMAIN_ID=10
-export ROS_LOCALHOST_ONLY=0
-```
+Set the environment block from [Network](#network), then:
 
-launch the robot drivers
 ```bash
 ros2 launch limo_bringup limo_start.launch.py
 ```
@@ -142,11 +121,9 @@ Wait until you see:
 
 **Leave this terminal running.** Closing it stops the robot.
 
----
+### Step 2 — Enter the container and check the link (Terminal B)
 
-## Step 2 — Start the laptop container (Terminal B — laptop host)
-
-bash
+On the laptop host:
 
 ```bash
 xhost +local:docker
@@ -154,9 +131,7 @@ sudo docker start limo_laptop
 sudo docker exec -it limo_laptop bash
 ```
 
-Inside the container, verify connection to robot:
-
-bash
+Inside the container:
 
 ```bash
 ros2 daemon stop && ros2 daemon start
@@ -164,8 +139,9 @@ ros2 topic list
 ```
 
 Expected: `/cmd_vel`, `/imu`, `/limo_status`, `/odom`, `/scan`, `/tf`, `/tf_static`.
+If they're missing, see [Troubleshooting](#troubleshooting) before going on.
 
-## Step 3 — Launch Nav2 (Terminal B, inside container)
+### Step 3 — Launch Nav2 with AMCL (Terminal B)
 
 ```bash
 ros2 launch nav2_bringup bringup_launch.py \
@@ -174,47 +150,27 @@ ros2 launch nav2_bringup bringup_launch.py \
     use_sim_time:=false
 ```
 
-Wait for: `Managed nodes are active` (about 10 seconds).
+Wait for `Managed nodes are active` (about 10 s). **Leave running.**
 
-**Leave this terminal running.**
+### Step 4 — Bootstrap the map frame (Terminal C)
 
----
-
-## Step 5 — Bootstrap the map frame (Terminal C — new container shell)
-
-Open a new terminal on the laptop host:
-
-bash
+Until you give AMCL an initial pose it publishes no `map → odom`, so RViz can't
+place the robot on the map. Publish a temporary identity transform:
 
 ```bash
 sudo docker exec -it limo_laptop bash
 ```
-
-Inside, publish a temporary `map → odom` transform so RViz can find the map frame:
-
-bash
 
 ```bash
 ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 map odom
 ```
 
-**Leave this running for now. You'll kill it after AMCL takes over.**
+**Leave it running for now; you'll stop it in Step 7.**
 
----
-
-## Step 6 — Open RViz (Terminal D — new container shell)
-
-bash
+### Step 5 — Open RViz (Terminal D)
 
 ```bash
 sudo docker exec -it limo_laptop bash
-```
-
-Inside:
-
-bash
-
-```bash
 rviz2
 ```
 
@@ -222,124 +178,127 @@ In RViz:
 
 1. **Global Options → Fixed Frame:** `map`
 2. **Add → By topic:**
-    - `/map` → Map (set **Durability Policy: Transient Local**)
-    - `/scan` → LaserScan (set **Reliability: Best Effort**)
-    - `/global_costmap/costmap` → Map (set **Durability Policy: Transient Local**, **Color Scheme: costmap**)
-3. The map should be visible
+    - `/map` → Map (**Durability Policy: Transient Local**)
+    - `/scan` → LaserScan (**Reliability: Best Effort**)
+    - `/global_costmap/costmap` → Map (**Durability Policy: Transient Local**, **Color Scheme: costmap**)
+3. The map should be visible.
 
----
+### Step 6 — Localize the robot
 
-## Step 7 — Localize the robot
+1. Find where the robot physically is in the room on the map.
+2. Click **2D Pose Estimate** at the top of RViz.
+3. **Click + drag** at the robot's real position, arrow pointing the way the robot faces.
+4. Release.
 
-1. Look at the map and identify where the robot physically is in the room
-2. Click **2D Pose Estimate** at the top of RViz
-3. **Click + drag** on the map at the robot's real position, pointing the arrow in the direction the robot is facing
-4. Release
+AMCL now publishes the real `map → odom`. The laser dots should line up with the
+black walls. If not, click 2D Pose Estimate again and refine; the heading matters
+more than the position.
 
-AMCL now publishes the real `map → odom` transform. The laser scan dots should align with the black walls in the map.
+### Step 7 — Stop the bootstrap transform (Terminal C)
 
-**Adjust if needed:** click 2D Pose Estimate again and refine. Getting the orientation right matters more than position.
+Press `Ctrl+C` in Terminal C. Two publishers of `map → odom` fight each other, so
+this step is not optional. The map should stay put; if it jumps, repeat Step 6.
 
----
+### Step 8 — Send navigation goals
 
-## Step 8 — Kill the static transform (Terminal C)
+**RViz:** click **2D Goal Pose**, then click + drag on the map at the destination
+(arrow = final heading). The robot drives.
 
-Now that AMCL is publishing `map → odom`, kill the fake one:
-
-```
-Ctrl+C
-```
-
-Map should stay put. If it jumps, click 2D Pose Estimate again.
-
----
-
-## Step 9 — Send navigation goals
-
-**Via RViz:**
-
-1. Click **2D Goal Pose** at the top
-2. Click + drag on the map at the destination, arrow = final facing direction
-3. Robot drives
-
-**or Via command line (Terminal C, container):**
-
-bash
+**Command line** (any container shell):
 
 ```bash
 ros2 topic pub --once /goal_pose geometry_msgs/msg/PoseStamped \
   "{header: {frame_id: 'map'}, pose: {position: {x: 1.0, y: 0.5, z: 0.0}, orientation: {w: 1.0}}}"
 ```
 
----
+Keep `--once`: without it, `ros2 topic pub` re-sends the goal every second.
+YAML needs a space after every colon (`frame_id: 'map'`, not `frame_id:'map'`).
 
 ### Shutdown sequence
 
-1. **Terminal D (RViz):** close window or Ctrl+C
-2. **Terminal B (Nav2 launch):** Ctrl+C — wait until all nodes shut down
-3. **Terminal A (robot):** Ctrl+C
-4. **Container** can be left running or stopped: `sudo docker stop infallible_dhawan` from laptop host
+1. **Terminal D (RViz):** close the window or `Ctrl+C`.
+2. **Terminal B (Nav2):** `Ctrl+C`, wait until all nodes shut down.
+3. **Terminal A (robot):** `Ctrl+C`.
+4. The container can stay running, or stop it from the laptop host:
+   `sudo docker stop limo_laptop`.
 
 ---
 
-### Troubleshooting
+## Troubleshooting
 
-**Topics not appearing in container**
-
-bash
+**Topics not appearing in the container**
 
 ```bash
 ros2 daemon stop && ros2 daemon start
 echo $RMW_IMPLEMENTATION    # must be rmw_fastrtps_cpp
 echo $ROS_DOMAIN_ID         # must be 10
-unset FASTRTPS_DEFAULT_PROFILES_FILE
+echo $FASTRTPS_DEFAULT_PROFILES_FILE   # if set, the file must exist: ls "$FASTRTPS_DEFAULT_PROFILES_FILE"
 ```
+
+Also check both machines' IPs are on the same subnet, and see the firewall note
+under [Network](#network).
 
 **Map doesn't show in RViz**
 
-- Map display **Durability Policy** must be `Transient Local`
-- Fixed Frame must be `map` (use static_transform_publisher bootstrap if needed)
-- Force republish: `ros2 lifecycle set /map_server deactivate && ros2 lifecycle set /map_server activate`
+- The Map display's **Durability Policy** must be `Transient Local`.
+- Fixed Frame must be `map` (keep the Step 4 bootstrap running until AMCL has a pose).
+- Force a republish:
+  `ros2 lifecycle set /map_server deactivate && ros2 lifecycle set /map_server activate`
 
-**Robot won't move on goal**
+**Robot won't move on a goal**
 
-- Check `/cmd_vel` is being published from Nav2: `ros2 topic echo /cmd_vel`
-- Check AMCL has a valid pose: laser dots should overlap walls
-- Try a closer/simpler goal first
+- Is Nav2 publishing? `ros2 topic echo /cmd_vel`
+- Does AMCL have a valid pose? Laser dots should overlap the walls.
+- Is the goal reachable? Try a closer, simpler goal in open white space.
+- Is something else publishing `/cmd_vel` (wandering node, Simulink)? Only one may run.
 
-**Deserialization errors return**
+**`Deserialization of data failed`**
 
-- `limo_msgs` workspace not sourced. Inside container: `source /root/ros2_ws/install/setup.bash`
+`limo_msgs` isn't sourced in this shell:
+`source /root/ros2_ws/install/setup.bash` (see DEVICE_SETUP step 5).
 
-# SLAM
+**Robot pose jumps or the map slides**
 
-SLAM (building a map with the onboard LiDAR) doc: see **[SLAM.md](SLAM.md)**.
+The `static_transform_publisher` from Step 4 is still running alongside AMCL.
+Stop it.
 
-## Nav2 Speed Tuning
+---
 
-Velocity limits for navigation live in `nav2.yaml` under
-`controller_server` (DWB controller). Nav2 must be restarted after editing.
+## Nav2 speed tuning
+
+Velocity limits live in `nav2.yaml` under `controller_server` (DWB controller).
+**Restart Nav2 after editing.**
 
 There are two speed limits:
-1. Robot hardware max (~1.0 m/s for the LIMO)
-2. Nav2-allowed max (set in nav2.yaml — this is what actually limits you)
+
+1. Robot hardware max (~1.0 m/s for the LIMO).
+2. Nav2-allowed max (set in `nav2.yaml`). This is what actually limits you.
 
 ### Parameters that matter
 
-| Param | Default | Purpose |
+| Param | Default in repo | Purpose |
 |---|---|---|
-| max_vel_x | 0.22 | top linear speed (m/s) |
-| max_speed_xy | 0.44 | speed magnitude cap (must be ≥ max_vel_x) |
-| max_vel_theta | 0.8 | top angular speed (rad/s) |
-| decel_lim_x | -0.5 | braking — must scale with speed |
-| acc_lim_theta | 0.2 | angular acceleration |
-| controller_frequency | 10.0 | control loop rate |
-| inflation_radius | 0.02 | wall clearance buffer (costmap) |
-| sim_time | 1.5 | DWB trajectory look-ahead time |
-| xy_goal_tolerance | 0.05 | goal arrival tolerance |
+| `max_vel_x` | 0.22 | top linear speed (m/s) |
+| `max_speed_xy` | 0.44 | speed magnitude cap (must be ≥ `max_vel_x`) |
+| `max_vel_theta` | 0.8 | top angular speed (rad/s) |
+| `decel_lim_x` | -0.5 | braking; must scale with speed |
+| `acc_lim_theta` | 0.2 | angular acceleration |
+| `controller_frequency` | 10.0 | control loop rate (Hz) |
+| `inflation_radius` | 0.02 | wall clearance buffer (costmap, both costmaps) |
+| `sim_time` | 1.5 | DWB trajectory look-ahead time (s) |
+| `xy_goal_tolerance` | 0.05 | goal arrival tolerance (m) |
 
-#### Apply (sed — adjust the "from" value to current file contents)
+Always check the current values first. The `sed` commands below only match the
+exact "from" value:
+
 ```bash
+grep -E "max_vel_x:|max_speed_xy:|decel_lim_x:|controller_frequency:|inflation_radius:|sim_time:|xy_goal_tolerance:" /root/maps/nav2.yaml
+```
+
+Example: a faster profile (edit the "from" values to match the grep output):
+
+```bash
+cp /root/maps/nav2.yaml /root/maps/nav2.yaml.bak          # keep a way back
 sed -i 's/max_vel_x: 0.22/max_vel_x: 0.80/' /root/maps/nav2.yaml
 sed -i 's/max_speed_xy: 0.44/max_speed_xy: 0.80/' /root/maps/nav2.yaml
 sed -i 's/decel_lim_x: -0.5/decel_lim_x: -2.0/' /root/maps/nav2.yaml
@@ -349,39 +308,39 @@ sed -i 's/sim_time: 1.5/sim_time: 2.0/' /root/maps/nav2.yaml
 sed -i 's/xy_goal_tolerance: 0.05/xy_goal_tolerance: 0.15/' /root/maps/nav2.yaml
 ```
 
-Verify:
+Then run the `grep` again to confirm. These edits change `~/maps/nav2.yaml` only;
+copy it back to `~/limo/config/` if you want the repo to keep them.
+
+### Rules and warnings
+
+- **Scale supporting params with speed.** Raising `max_vel_x` alone makes the
+  robot lurch and overshoot. Deceleration, controller frequency, inflation radius
+  and `sim_time` must all scale up too.
+- **Hardware limit ~1.0 m/s.** Above that the motors saturate. A safe indoor
+  ceiling is ~0.6–0.7 m/s; 0.8 is aggressive.
+- **Turning radius** = `max_vel_x / max_vel_theta`. At 0.8 / 0.8 that's 1.0 m. If
+  the robot can't make a corner, raise `max_vel_theta`.
+- **`sed` only replaces exact matches.** If a command "does nothing", the value
+  was already changed. `grep` first, then target those exact numbers.
+
+### Measure actual speed
+
+Send a goal down a long straight path and watch the reported velocity. Foxy's
+`ros2 topic echo` has no `--field` option, so filter the output instead:
+
 ```bash
-grep -E "max_vel_x:|max_speed_xy:|decel_lim_x:|controller_frequency:|inflation_radius:|sim_time:|xy_goal_tolerance:" /root/maps/nav2.yaml
+ros2 topic echo /odom | grep -A1 "linear:"
 ```
+
+The peak `x:` value is the real top speed.
 
 ---
 
-## Rules and warnings
+## References
 
-> Scale supporting params with speed
-> Raising max_vel_x alone makes the robot lurch and overshoot. Deceleration,
-> controller frequency, inflation radius, and sim_time must all scale up too.
-
-> LIMO hardware limit ~1.0 m/s
-> Setting max_vel_x above ~1.0 does nothing — motors saturate. Safe indoor
-> ceiling is ~0.6–0.7 m/s; 0.8 is aggressive.
-
-> Turning radius
-> min turning radius = max_vel_x / max_vel_theta
-> At 0.8 / 0.8 = 1.0 m. If the robot can't corner, raise max_vel_theta.
-
-> sed only replaces exact matches
-> If a sed command "does nothing", the value was already changed in a prior
-> run. Always `grep` current values first, then target those exact numbers.
-
-## Measure actual speed
-Send a goal down a long straight path, then watch reported velocity:
-```bash
-ros2 topic echo /odom --field twist.twist.linear.x
-```
-Peak value = real top speed.
-
-https://www.mathworks.com/help/releases/R2023a/pdf_doc/supportpkg/turtlebotrobot/turtlebotrobot_ug.pdf
+- MathWorks, *ROS Toolbox Support Package for TurtleBot-Based Robots* user guide
+  (R2023a): <https://www.mathworks.com/help/releases/R2023a/pdf_doc/supportpkg/turtlebotrobot/turtlebotrobot_ug.pdf>
+- Nav2 documentation: <https://docs.nav2.org>
 
 ---
 

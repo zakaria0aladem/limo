@@ -2,32 +2,45 @@
 # ============================================================================
 # install_mocap_localization.sh
 # ----------------------------------------------------------------------------
-# TODO(zakaria): the original of this script was not recovered. This is a
-# reconstructed best-effort stub based on docs/SETUP.md (Part 3). Verify each
-# step against your working container, then delete this TODO banner.
+# Installs the system deps and builds mocap_localization INSIDE the Foxy
+# container. Run it from wherever the package sits in the mounted workspace:
 #
-# Purpose: drop the mocap_localization package into the mounted workspace and
-# build it inside the Foxy container.
+#   # host:       cp -r ~/limo/src/mocap_localization ~/ros2_ws/src/
+#   # container:  bash /root/ros2_ws/src/mocap_localization/install_mocap_localization.sh
+#
+# If the script is run from a package copy OUTSIDE $WS/src (and that path is
+# visible in the container), it copies the package into $WS/src first. It
+# copies rather than symlinks: a link to a host path the container doesn't
+# mount would dangle.
 # ============================================================================
-set -e
+set -euo pipefail
 
 WS="${ROS2_WS:-/root/ros2_ws}"
 SRC="$WS/src"
+PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo ">> Ensuring workspace src exists at $SRC"
+if [[ ! -f "$PKG_DIR/package.xml" ]] || ! grep -q '<name>mocap_localization</name>' "$PKG_DIR/package.xml"; then
+    echo "!! $PKG_DIR is not the mocap_localization package." >&2
+    echo "   Keep this script inside the package folder (next to package.xml)." >&2
+    exit 1
+fi
+
 mkdir -p "$SRC"
-
-# If this repo is cloned somewhere the container can see (e.g. a mounted path),
-# symlink or copy the package into the workspace src. Adjust REPO_PKG to point
-# at this package's directory.
-REPO_PKG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo ">> Linking $REPO_PKG -> $SRC/mocap_localization"
-ln -sfn "$REPO_PKG" "$SRC/mocap_localization"
+if [[ "$(realpath "$PKG_DIR")" != "$(realpath -m "$SRC/mocap_localization")" ]]; then
+    echo ">> Copying $PKG_DIR -> $SRC/mocap_localization"
+    rm -rf "$SRC/mocap_localization"
+    cp -r "$PKG_DIR" "$SRC/mocap_localization"
+fi
 
 echo ">> System deps (netbase fixes the vrpn getprotobyname() failure)"
 apt-get update && apt-get install -y ros-foxy-vrpn-mocap netbase
 
 echo ">> Building"
+# ROS setup scripts read unset variables, so relax -u while sourcing
+set +u
+# shellcheck disable=SC1091
+source /opt/ros/foxy/setup.bash
+set -u
 cd "$WS"
 colcon build --packages-select mocap_localization --symlink-install
 

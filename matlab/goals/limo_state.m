@@ -39,9 +39,14 @@ catch
 end
 
 % ----- ESTIMATE: map -> base_link from the TF tree (Nav2 belief) -----
+% (No source time -> latest available transform. rostime() is the ROS 1 API
+%  and errors on a ros2node, which silently left ESTIMATE empty.)
 try
-    tf = getTransform(h.tftree, h.mapFrame, h.baseFrame, ...
-                      rostime('now',h.node), 'Timeout', opts.timeout);
+    t0 = tic;
+    while ~any(strcmp(h.tftree.AvailableFrames, h.mapFrame)) && toc(t0) < opts.timeout
+        pause(0.1);
+    end
+    tf = getTransform(h.tftree, h.mapFrame, h.baseFrame);
     s.estimate = [tf.transform.translation.x, tf.transform.translation.y, ...
                   yawFromQuat(tf.transform.rotation)];
 catch

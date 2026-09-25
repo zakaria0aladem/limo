@@ -47,6 +47,8 @@ class MocapMapOdom(Node):
         self.declare_parameter('reg_y', 0.0)
         self.declare_parameter('reg_yaw', 0.0)
         self.declare_parameter('jump_threshold', 0.0)
+        # consecutive self-consistent frames needed to accept a real jump
+        self.declare_parameter('jump_accept_frames', 10)
 
         self.mocap_topic = self.get_parameter('mocap_topic').value
         self.map_frame = self.get_parameter('map_frame').value
@@ -57,6 +59,8 @@ class MocapMapOdom(Node):
                     float(self.get_parameter('reg_y').value),
                     float(self.get_parameter('reg_yaw').value))
         self.jump_threshold = float(self.get_parameter('jump_threshold').value)
+        self.jump_accept_frames = int(
+            self.get_parameter('jump_accept_frames').value)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -67,6 +71,8 @@ class MocapMapOdom(Node):
         qos.history = HistoryPolicy.KEEP_LAST
         self.latest_map_base = None
         self.prev_map_base = None
+        self.candidate = None       # pose after a rejected jump
+        self.candidate_count = 0
         self.create_subscription(PoseStamped, self.mocap_topic, self.mocap_cb, qos)
         self.create_timer(1.0 / rate, self.publish_map_odom)
 
@@ -84,8 +90,28 @@ class MocapMapOdom(Node):
             d = math.hypot(map_base[0] - self.prev_map_base[0],
                            map_base[1] - self.prev_map_base[1])
             if d > self.jump_threshold:
-                self.get_logger().warn(f"Rejected mocap jump of {d:.2f} m")
-                return
+                # A flip is a one-off outlier; a real move (e.g. the robot
+                # drove on during a mocap dropout) stays put. Accept the new
+                # position once it holds for jump_accept_frames frames, or
+                # every later frame would be rejected against a stale pose.
+                if (self.candidate is not None and math.hypot(
+                        map_base[0] - self.candidate[0],
+                        map_base[1] - self.candidate[1])
+                        <= self.jump_threshold):
+                    self.candidate_count += 1
+                else:
+                    self.candidate_count = 1
+                self.candidate = map_base
+                if self.candidate_count < self.jump_accept_frames:
+                    self.get_logger().warn(
+                        f"Rejected mocap jump of {d:.2f} m",
+                        throttle_duration_sec=1.0)
+                    return
+                self.get_logger().warn(
+                    f"Accepted mocap jump of {d:.2f} m after "
+                    f"{self.candidate_count} consistent frames")
+        self.candidate = None
+        self.candidate_count = 0
         self.latest_map_base = map_base
         self.prev_map_base = map_base
 

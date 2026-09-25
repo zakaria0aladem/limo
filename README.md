@@ -24,6 +24,7 @@ OptiTrack (Motive) ──VRPN──▶ vrpn_mocap ──▶ mocap_map_odom ─�
 - [Repository layout](#repository-layout)
 - [Quickstart](#quickstart)
 - [Conventions and key facts](#conventions-and-key-facts)
+- [Troubleshooting index](#troubleshooting-index)
 - [Requirements](#requirements)
 - [Hardware](#hardware)
 - [Status and reconstructed files](#status-and-reconstructed-files)
@@ -35,12 +36,12 @@ OptiTrack (Motive) ──VRPN──▶ vrpn_mocap ──▶ mocap_map_odom ─�
 
 New to the repo? Read the guided path first:
 
-**➡ [`docs/TUTORIAL.md`](docs/TUTORIAL.md)** — a progression from reactive motion
+**[`docs/TUTORIAL.md`](docs/TUTORIAL.md)** — a progression from reactive motion
 → SLAM/AMCL → mocap absolute localization → closed-loop control.
 
 Then do the one-time base setup every workflow depends on:
 
-**➡ [`docs/DEVICE_SETUP.md`](docs/DEVICE_SETUP.md)** — robot bring-up (incl. the
+**[`docs/DEVICE_SETUP.md`](docs/DEVICE_SETUP.md)** — robot bring-up (incl. the
 vendor LiDAR), network, laptop container, `limo_msgs`, Nav2 install.
 
 ---
@@ -61,6 +62,7 @@ Every doc, and what it's for:
 | [OPTITRACK_NAV2_PROJECT.md](docs/OPTITRACK_NAV2_PROJECT.md) | **Level 2** deep dive — full phase log, `map→odom` primer, comparison experiment |
 | [CONTROL_SETUP.md](docs/CONTROL_SETUP.md) | **Level 3** one-time — Simulink control testbed setup |
 | [CONTROL_DAILY.md](docs/CONTROL_DAILY.md) | **Level 3** per-session run + safety (E-STOP) |
+| [matlab/perception/README.md](matlab/perception/README.md) | Side track — LiDAR obstacle detection in MATLAB |
 
 ---
 
@@ -94,10 +96,13 @@ limo/
 ├── matlab/
 │   ├── control/                  build_limo_control_model.m, limo_ctrl_params.m
 │   ├── goals/                    limo_connect, limo_state, limo_goal, send_route_*
+│   ├── perception/               LiDAR obstacle detection + live viewer (/scan)
 │   ├── analysis/                 analyze_runs.m (truth vs belief, RMSE/drift)
 │   ├── setup/                    gen_nav2_msgs.m (one-time action interface)
 │   └── examples/                 ROS 2 scratch snippets
-├── config/                       nav2.yaml, slam_params.yaml, map, fastdds_udp.xml
+├── config/                       nav2.yaml, slam_params.yaml, map, fastdds_udp.xml,
+│                                 limo_mocap_nav2.launch.py (copy for ~/maps),
+│                                 optitrack/ (Motive project + calibration)
 └── data/run1_mocap/              example rosbag (so analyze_runs runs on clone)
 ```
 
@@ -105,12 +110,26 @@ limo/
 
 ## Quickstart
 
-**0. One-time:** follow [DEVICE_SETUP.md](docs/DEVICE_SETUP.md), then build the packages:
+**0. One-time:** follow [DEVICE_SETUP.md](docs/DEVICE_SETUP.md). In short, on the
+laptop host:
 
 ```bash
-colcon build --symlink-install && source install/setup.bash
-cp config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,slam_params.yaml,fastdds_udp.xml} ~/maps/
+git clone https://github.com/zakaria0aladem/limo.git ~/limo
+mkdir -p ~/ros2_ws/src ~/maps
+cp -r ~/limo/src/mocap_localization ~/limo/src/limo_nav ~/ros2_ws/src/
+cp ~/limo/config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,slam_params.yaml,fastdds_udp.xml,limo_mocap_nav2.launch.py} ~/maps/
 ```
+
+then, inside the Foxy container (`~/ros2_ws` is mounted at `/root/ros2_ws`):
+
+```bash
+cd /root/ros2_ws
+colcon build --packages-select limo_msgs mocap_localization limo_nav
+source install/setup.bash
+```
+
+`limo_msgs` normally comes from AgileX's `limo_ros2` already in `~/ros2_ws/src`;
+don't add a second copy (DEVICE_SETUP step 5).
 
 **Mocap + Nav2** (the flagship workflow):
 
@@ -121,7 +140,8 @@ cp config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,slam_params.yaml,fastdds_udp.xml} 
 ```
 
 Then send a goal from RViz (2D Goal Pose) or CLI. Per-workflow step-by-step,
-troubleshooting, and Motive configuration are in [docs/](docs).
+troubleshooting, and Motive configuration are in [docs/](docs); the full
+terminal-by-terminal run is [OPTITRACK_NAV2_DAILY.md](docs/OPTITRACK_NAV2_DAILY.md).
 
 ---
 
@@ -135,6 +155,32 @@ troubleshooting, and Motive configuration are in [docs/](docs).
   the container/host shared-memory boundary doesn't silently drop data. See the
   header of [`config/fastdds_udp.xml`](config/fastdds_udp.xml).
 - **Foxy is EOL** — most upstream docs target Humble/Jazzy; expect back-porting.
+  Foxy's `ros2 topic echo` has no `--once` / `--field`.
+- **Only one `/cmd_vel` publisher at a time** — wandering, Nav2, or Simulink.
+- **Save everything under `~/maps`** (`/root/maps` in the container): it is the
+  only folder shared by the container, the host, and MATLAB, and it survives
+  container rebuilds.
+
+---
+
+## Troubleshooting index
+
+The most common problems, and where the fix is documented:
+
+| Symptom | Usual cause | Fix |
+|---|---|---|
+| Container sees no robot topics | domain / RMW mismatch, subnet, firewall | [DEVICE_SETUP checklist](docs/DEVICE_SETUP.md#checklist-is-the-base-setup-done) |
+| `ros2: command not found` | base ROS not sourced | [DEVICE_SETUP step 5](docs/DEVICE_SETUP.md#5-build-limo_msgs-in-the-container-once) |
+| `Deserialization of data failed` | `limo_msgs` not built/sourced | [DEVICE_SETUP step 5](docs/DEVICE_SETUP.md#5-build-limo_msgs-in-the-container-once) |
+| `Duplicate package names not supported: limo_msgs` | two copies in `src/` | [DEVICE_SETUP step 5](docs/DEVICE_SETUP.md#5-build-limo_msgs-in-the-container-once) |
+| `getprotobyname() failed` / VRPN "connection is bad" | `netbase` missing | [OPTITRACK_NAV2_SETUP Part 2](docs/OPTITRACK_NAV2_SETUP.md#part-2--install-the-vrpn-driver-container) |
+| Map not visible in RViz | Durability not Transient Local / map_server inactive | [OPTITRACK_NAV2_DAILY](docs/OPTITRACK_NAV2_DAILY.md#map_server-lifecycle) |
+| Robot pose jumps between two places | AMCL and `mocap_map_odom` both running | [OPTITRACK_NAV2_DAILY Terminal E](docs/OPTITRACK_NAV2_DAILY.md#terminal-e--nav2-navigation-no-amcl-container) |
+| Laser scan doesn't overlay map walls | map ↔ world registration | [OPTITRACK_NAV2_SETUP Part 4](docs/OPTITRACK_NAV2_SETUP.md#part-4--registration-map--world-alignment) |
+| MATLAB sees robot topics but not the container's | Fast DDS shared memory | [CONTROL_SETUP §3](docs/CONTROL_SETUP.md#3-the-dds-fix-one-time-file-used-every-session) |
+| MATLAB `receive` times out on mocap | QoS / domain | use `limo_connect` ([project log, Phase 5](docs/OPTITRACK_NAV2_PROJECT.md#phase-5--goal-sending)) |
+| MATLAB can't read a recorded bag | bag outside `~/maps` or root-owned | [project log, Phase 6](docs/OPTITRACK_NAV2_PROJECT.md#troubleshooting-2) |
+| SLAM never produces a map | `base_footprint` vs `base_link` | [SLAM.md](docs/SLAM.md#troubleshooting) |
 
 ---
 
@@ -165,10 +211,15 @@ troubleshooting, and Motive configuration are in [docs/](docs).
   the `runs` struct when recorded.
 - A few files are **reconstructed** (not the lost originals) and marked in-file —
   verify against your setup: [`matlab/goals/limo_state.m`](matlab/goals/limo_state.m),
-  [`config/slam_params.yaml`](config/slam_params.yaml),
-  [`docs/DEVICE_SETUP.md`](docs/DEVICE_SETUP.md),
-  `src/mocap_localization/install_mocap_localization.sh`, and
+  [`config/slam_params.yaml`](config/slam_params.yaml), and
   `src/mocap_localization/docker/Dockerfile`.
+- `src/mocap_localization/install_mocap_localization.sh` was rewritten to copy
+  (not symlink) the package into the workspace; not yet run on hardware.
+- `config/nav2.yaml` keeps `map_server.yaml_filename: turtlebot3_world.yaml` (a
+  Nav2 default). Every launch in these docs overrides it with the real map, so it
+  only matters if you start `map_server` from that file alone.
+- The MATLAB control model (`limo_mocap_control.slx`) is generated, not
+  committed: run `build_limo_control_model` after cloning or after changing it.
 
 ---
 

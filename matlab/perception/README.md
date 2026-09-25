@@ -15,7 +15,10 @@ layer can build on.
 
 ## Usage
 
-Requires a connection handle from `matlab/goals/limo_connect.m`:
+Requires the robot drivers running (LiDAR publishing `/scan`), the DDS setup
+from [`docs/CONTROL_SETUP.md`](../../docs/CONTROL_SETUP.md#3-the-dds-fix-one-time-file-used-every-session)
+if MATLAB must reach the container, and a connection handle from
+`matlab/goals/limo_connect.m`:
 
 ```matlab
 h = limo_connect(domainID=10);
@@ -49,6 +52,8 @@ obs.ok            message received?
 - **QoS:** the subscriber is best-effort (the LiDAR publishes best-effort; a
   reliable subscriber would receive nothing).
 - **Verify on hardware:** confirm the scan topic is `/scan` and that 0° really
-  points forward (`ros2 topic echo /scan --once`). If the sensor's zero isn't
+  points forward (`ros2 topic echo /scan | head -20`; Foxy has no `--once`). If the sensor's zero isn't
   the robot's front, subtract that constant offset from `angle_deg`.
 - **Threshold:** default 0.5 m; pass `threshold=` to change it.
+- **Reconnecting:** the `/scan` subscriber is cached between calls and rebuilt
+  automatically when you pass a handle from a new `limo_connect`.

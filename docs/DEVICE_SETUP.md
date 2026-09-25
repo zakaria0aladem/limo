@@ -1,8 +1,8 @@
 # Device setup — the one-time base every workflow needs
 
-This is the shared foundation for all three workflows (regular AMCL nav, mocap
-Nav2, and MATLAB control). Do it once. Then go to the workflow you want:
-[`NAVIGATION.md`](NAVIGATION.md) (AMCL + SLAM),
+This is the shared foundation for every workflow (wandering, SLAM + AMCL nav,
+mocap Nav2, and MATLAB control). Do it once. Then go to the workflow you want:
+[`SLAM.md`](SLAM.md) / [`NAVIGATION.md`](NAVIGATION.md) (onboard LiDAR),
 [`OPTITRACK_NAV2_SETUP.md`](OPTITRACK_NAV2_SETUP.md) (mocap), or
 [`CONTROL_SETUP.md`](CONTROL_SETUP.md) (control).
 
@@ -70,6 +70,7 @@ Leave it running — closing it stops the robot. This publishes `/scan`, `/odom`
 The laptop drives Nav2/RViz from a Foxy desktop container:
 
 ```bash
+mkdir -p ~/ros2_ws/src ~/maps      # create the mount points first, or Docker makes them root-owned
 xhost +local:docker
 sudo docker run -dit \
   --net=host --ipc=host --privileged \
@@ -79,10 +80,14 @@ sudo docker run -dit \
   -v ~/maps:/root/maps \
   -e ROS_DOMAIN_ID=10 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-#you can change the image name here:
-  --name limo_laptop \  
+  --name limo_laptop \
   osrf/ros:foxy-desktop
 ```
+
+`--name limo_laptop` is the container name every doc uses; if you pick another
+name, substitute it everywhere. Do not put comments or trailing spaces after a
+`\` line continuation: the shell then ends the command early and runs the rest
+as a separate (broken) command.
 
 `~/ros2_ws` and `~/maps` on the laptop are mounted into the container at
 `/root/ros2_ws` and `/root/maps` — that pairing is how files cross the boundary.
@@ -136,9 +141,9 @@ cd /root/ros2_ws
 colcon build --packages-select limo_msgs
 source install/setup.bash
 ```
-To source it automatically in every new shell, add these to ~/.bashrc. A fresh
+To source it automatically in every new shell, add these to `~/.bashrc`. A fresh
 container does not source ROS at all — you need the base install first, then the
-workspace overlay on top, or you get ros2: command not found:
+workspace overlay on top, or you get `ros2: command not found`:
 
 ```bash
 echo 'source /opt/ros/foxy/setup.bash' >> ~/.bashrc          # base ROS 2 -- gives the `ros2` command
@@ -156,9 +161,13 @@ which ros2        # should print /opt/ros/foxy/bin/ros2
 ```
 
 Order matters: the workspace overlay layers on top of the base install and does not
-provide ros2 by itself. Sourcing only install/setup.bash (without the base first)
-still leaves ros2: command not found.
+provide `ros2` by itself. Sourcing only `install/setup.bash` (without the base first)
+still leaves `ros2: command not found`.
 
+The third line (the UDP profile) is only needed when MATLAB talks to the container
+(step 8), but it is harmless otherwise: UDP still reaches the robot. It does require
+`/root/maps/fastdds_udp.xml` to exist (step 6). **Never set it on the robot**; the
+file doesn't exist there.
 
 **"Duplicate package names not supported: limo_msgs"** — the AgileX set
 (`src/limo_ros2/limo_msgs`) already contains an identical `limo_msgs`. If a second
@@ -184,7 +193,7 @@ The launch files read from `/root/maps` (= laptop `~/maps`). Copy from the repo'
 `config/`. Run this on the **host** (where `~/limo` and `~/maps` both live):
 
 ```bash
-cp ~/limo/config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,fastdds_udp.xml,limo_mocap_nav2.launch.py} ~/maps/
+cp ~/limo/config/{mapMTR5.yaml,mapMTR5.pgm,nav2.yaml,slam_params.yaml,fastdds_udp.xml,limo_mocap_nav2.launch.py} ~/maps/
 ```
 
 **If `~/maps` already has these, skip this step.** `~/maps` is a host mount and
@@ -197,12 +206,20 @@ survives container rebuilds. Check with `ls ~/maps/` first. A `cannot stat
 `vrpn_mocap` was already installed in step 4. Build the localizer package:
 
 ```bash
-# it's likely already in the workspace; check:
-ls ~/ros2_ws/src/mocap_localization
-# if missing, copy it in on the host:  cp -r ~/limo/src/mocap_localization ~/ros2_ws/src/
+# host: copy the package into the mounted workspace (skip if already there)
+ls ~/ros2_ws/src/mocap_localization || cp -r ~/limo/src/mocap_localization ~/ros2_ws/src/
+```
+
+```bash
+# container:
 cd /root/ros2_ws && colcon build --packages-select mocap_localization
 source install/setup.bash
 ```
+
+(`bash /root/ros2_ws/src/mocap_localization/install_mocap_localization.sh` in the
+container does the apt install and the build in one go.) After pulling repo
+updates, re-copy the package and rebuild: the copy in `~/ros2_ws/src` does not
+follow `~/limo`.
 
 Verify: `ros2 pkg list | grep -E "vrpn_mocap|mocap_localization"`. Full steps:
 [`OPTITRACK_NAV2_SETUP.md`](OPTITRACK_NAV2_SETUP.md).
@@ -226,11 +243,32 @@ the MATLAB side: [`CONTROL_SETUP.md`](CONTROL_SETUP.md).
 
 ---
 
+## Checklist: is the base setup done?
+
+Run these with the robot drivers up (step 1). Every line should pass before you
+start any workflow.
+
+| Check | Where | Expected |
+|---|---|---|
+| `echo $ROS_DOMAIN_ID $RMW_IMPLEMENTATION` | robot **and** container | `10 rmw_fastrtps_cpp` |
+| `which ros2` | container | `/opt/ros/foxy/bin/ros2` |
+| `ros2 topic list` | container | includes `/scan /odom /tf /limo_status` |
+| `ros2 topic echo /limo_status` | container | messages, no `Deserialization ... failed` |
+| `dpkg -l \| grep netbase` | container | one `ii  netbase` line |
+| `ls ~/maps` | host | `mapMTR5.yaml mapMTR5.pgm nav2.yaml fastdds_udp.xml ...` |
+
+If the container sees no robot topics: `ros2 daemon stop && ros2 daemon start`,
+re-check domain/RMW on both sides, confirm both machines are on the same subnet
+(`hostname -I`), and that no firewall blocks UDP (`sudo ufw status` on the laptop).
+
+---
+
 ## Where to go next
 
 | You want to… | Go to |
 |---|---|
-| Build a map / navigate with the onboard LiDAR (AMCL, SLAM) | [`NAVIGATION.md`](NAVIGATION.md) |
+| Build a map with the onboard LiDAR | [`SLAM.md`](SLAM.md) |
+| Navigate a saved map with AMCL | [`NAVIGATION.md`](NAVIGATION.md) |
 | Navigate with OptiTrack absolute localization | [`OPTITRACK_NAV2_SETUP.md`](OPTITRACK_NAV2_SETUP.md) → [`OPTITRACK_NAV2_DAILY.md`](OPTITRACK_NAV2_DAILY.md) |
 | Run closed-loop P/PID/LQR control from MATLAB | [`CONTROL_SETUP.md`](CONTROL_SETUP.md) → [`CONTROL_DAILY.md`](CONTROL_DAILY.md) |
 | Just confirm the robot moves (no map) | [`WANDERING.md`](WANDERING.md) |

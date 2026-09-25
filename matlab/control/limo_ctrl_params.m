@@ -59,10 +59,20 @@ B = [-1  0;
 Q = diag([4, 8, 2]);      % penalize ex, ey, etheta
 R = diag([1, 0.5]);       % penalize v, w effort
 
-% Control System Toolbox is installed -> use the built-in solver directly.
-P.K_lqr = lqr(A, B, Q, R);      % 2x3 optimal gain
-
-fprintf('LQR gain K =\n'); disp(P.K_lqr);
+if exist('lqr','file') == 2 && license('test','Control_Toolbox')
+    P.K_lqr = lqr(A, B, Q, R);          % 2x3 optimal gain, follows Q/R/v0
+    fprintf('LQR gain K (from lqr) =\n');
+else
+    % Toolbox-free fallback: the lqr() result for the DEFAULT v0, Q, R above.
+    % If you change v0/Q/R without the toolbox, this K will NOT follow.
+    P.K_lqr = [-2.0000,       0,       0;
+                     0, -4.0000, -2.4495];
+    warning('limo_ctrl_params:noLqr', ...
+        ['Control System Toolbox not available -- using the precomputed K ' ...
+         'for v0=0.25, Q=diag([4 8 2]), R=diag([1 0.5]). Edits to Q/R/v0 are ignored.']);
+    fprintf('LQR gain K (precomputed) =\n');
+end
+disp(P.K_lqr);
 fprintf('  (baked into the LQR block automatically at build time)\n');
 
 %% ---- Push to base workspace ----
